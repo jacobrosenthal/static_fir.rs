@@ -1,18 +1,15 @@
 //! Finite-impulse response (FIR) convolution with static tap coefficients.
 
-#![feature(conservative_impl_trait)]
-
 extern crate num;
 
-use std::ops::{Add, Mul, Deref, DerefMut};
+use std::ops::{Add, Deref, DerefMut, Mul};
 
 use num::traits::Zero;
 
 /// Provides a sequence of coefficients and storage for sample history.
 pub trait FIRCoefs: Default + Deref<Target = [<Self as FIRCoefs>::Sample]> + DerefMut {
     /// Type of sample stored in the history.
-    type Sample: Copy + Clone + Zero + Add<Output = Self::Sample> +
-        Mul<f32, Output = Self::Sample>;
+    type Sample: Copy + Clone + Zero + Add<Output = Self::Sample> + Mul<f32, Output = Self::Sample>;
 
     /// Number of coefficients/stored samples.
     fn size() -> usize;
@@ -37,7 +34,9 @@ macro_rules! impl_fir {
 
         impl $crate::FIRCoefs for $name {
             type Sample = $sample;
-            fn size() -> usize { $size }
+            fn size() -> usize {
+                $size
+            }
             fn coefs() -> &'static [f32] {
                 static COEFS: [f32; $size] = $coefs;
                 &COEFS[..]
@@ -52,11 +51,15 @@ macro_rules! impl_fir {
 
         impl std::ops::Deref for $name {
             type Target = [$sample];
-            fn deref(&self) -> &Self::Target { &self.0[..] }
+            fn deref(&self) -> &Self::Target {
+                &self.0[..]
+            }
         }
 
         impl std::ops::DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0[..] }
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0[..]
+            }
         }
     };
 }
@@ -96,10 +99,14 @@ impl<C: FIRCoefs> FIRFilter<C> {
         let (hleft, hright) = self.inner.split_at(self.idx);
         let (cleft, cright) = C::coefs().split_at(C::size() - self.idx);
 
-        cleft.iter().zip(hright)
-            .fold(C::Sample::zero(), |s, (&c, &x)| s + x * c) +
-        cright.iter().zip(hleft)
+        cleft
+            .iter()
+            .zip(hright)
             .fold(C::Sample::zero(), |s, (&c, &x)| s + x * c)
+            + cright
+                .iter()
+                .zip(hleft)
+                .fold(C::Sample::zero(), |s, (&c, &x)| s + x * c)
     }
 
     /// Iterate over the history of stored samples, with the oldest sample as the first
@@ -115,46 +122,15 @@ impl<C: FIRCoefs> FIRFilter<C> {
 mod test {
     use super::*;
 
-    impl_fir!(TestFIR, f32, 4, [
-        1.0,
-        0.0,
-        2.0,
-        0.0,
-    ]);
+    impl_fir!(TestFIR, f32, 4, [1.0, 0.0, 2.0, 0.0,]);
 
-    impl_fir!(SymmetricOddFIR, f32, 5, [
-        0.2,
-        0.4,
-        1.0,
-        0.4,
-        0.2,
-    ]);
+    impl_fir!(SymmetricOddFIR, f32, 5, [0.2, 0.4, 1.0, 0.4, 0.2,]);
 
-    impl_fir!(SymmetricEvenFIR, f32, 6, [
-        0.2,
-        0.4,
-        1.0,
-        1.0,
-        0.4,
-        0.2,
-    ]);
+    impl_fir!(SymmetricEvenFIR, f32, 6, [0.2, 0.4, 1.0, 1.0, 0.4, 0.2,]);
 
-    impl_fir!(NonSymmetricOddFIR, f32, 5, [
-        0.2,
-        0.4,
-        1.0,
-        0.5,
-        0.2,
-    ]);
+    impl_fir!(NonSymmetricOddFIR, f32, 5, [0.2, 0.4, 1.0, 0.5, 0.2,]);
 
-    impl_fir!(NonSymmetricEvenFIR, f32, 6, [
-        0.2,
-        0.4,
-        1.0,
-        1.0,
-        0.5,
-        0.2,
-    ]);
+    impl_fir!(NonSymmetricEvenFIR, f32, 6, [0.2, 0.4, 1.0, 1.0, 0.5, 0.2,]);
 
     #[test]
     fn test_fir() {
