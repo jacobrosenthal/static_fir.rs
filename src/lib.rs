@@ -1,8 +1,9 @@
 //! Finite-impulse response (FIR) convolution with static tap coefficients.
+#![no_std]
 
 extern crate num;
 
-use std::ops::{Add, Deref, DerefMut, Mul};
+use core::ops::{Add, Deref, DerefMut, Mul};
 
 use num::traits::Zero;
 
@@ -49,14 +50,14 @@ macro_rules! impl_fir {
             }
         }
 
-        impl std::ops::Deref for $name {
+        impl core::ops::Deref for $name {
             type Target = [$sample];
             fn deref(&self) -> &Self::Target {
                 &self.0[..]
             }
         }
 
-        impl std::ops::DerefMut for $name {
+        impl core::ops::DerefMut for $name {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 &mut self.0[..]
             }
